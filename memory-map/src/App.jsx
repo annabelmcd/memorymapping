@@ -44,6 +44,15 @@ const markers = [
 const authors = ['Annabel', 'Liya', 'Eli'];
 const feelings = ['warm', 'wistful', 'calm', 'intense', 'tender', 'alive'];
 
+const feelingColors = {
+  warm:    '#f5a623',
+  wistful: '#a78bfa',
+  calm:    '#60a5fa',
+  intense: '#f87171',
+  tender:  '#f472b6',
+  alive:   '#4ade80',
+};
+
 function App() {
   const mapRef = useRef()
   const mapContainerRef = useRef()
@@ -51,6 +60,7 @@ function App() {
 
   const [authorFilter, setAuthorFilter] = useState('all')
   const [feelingFilter, setFeelingFilter] = useState('all')
+  const [mapVisible, setMapVisible] = useState(true)
 
   useEffect(() => {
     mapboxgl.accessToken = accessToken
@@ -62,15 +72,16 @@ function App() {
     });
 
     markerInstancesRef.current = markers.map(({ lng, lat, title, author, feeling, description }) => {
+      const color = feelingColors[feeling] || '#c084fc';
       const popupContainer = document.createElement('div');
       popupContainer.style.cssText = 'font-family:monospace;min-width:240px;max-width:280px;font-size:13px;line-height:1.5';
       popupContainer.innerHTML = `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <span style="width:14px;height:14px;border-radius:50%;background:#c97d2e;flex-shrink:0;display:inline-block"></span>
+          <span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>
           <span style="font-weight:700;font-size:14px;color:#1a1a1a">${title}</span>
         </div>
         <div style="color:#666;margin-bottom:10px;font-size:12px">
-          by ${author}&nbsp;&nbsp;feeling: <span style="color:#c97d2e">${feeling}</span>
+          by ${author}&nbsp;&nbsp;feeling: <span style="color:${color}">${feeling}</span>
         </div>
         <p style="color:#333;margin:0 0 12px 0">${description}</p>
         <div style="color:#888;font-style:italic;font-size:12px">${lat}, ${lng}</div>
@@ -79,7 +90,7 @@ function App() {
       const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '300px' })
         .setDOMContent(popupContainer);
 
-      const marker = new mapboxgl.Marker({ color: '#c97d2e', scale: 0.6 })
+      const marker = new mapboxgl.Marker({ color, scale: 0.6 })
         .setLngLat([lng, lat])
         .setPopup(popup)
         .addTo(mapRef.current);
@@ -101,13 +112,14 @@ function App() {
     });
   }, [authorFilter, feelingFilter])
 
+
   const visibleCount = markers.filter(m =>
     (authorFilter === 'all' || m.author === authorFilter) &&
     (feelingFilter === 'all' || m.feeling === feelingFilter)
   ).length;
 
   return (
-    <>
+    <div className="app" data-feeling={feelingFilter}>
       <div className="sidebar">
         <div className="sidebar-header">
           <h1>memory map</h1>
@@ -156,13 +168,31 @@ function App() {
           </div>
         </div>
 
+        <div className="sidebar-section">
+          <h2>map layer</h2>
+          <button
+            className={`filter-btn toggle-btn ${mapVisible ? 'active' : ''}`}
+            onClick={() => {
+              if (!mapVisible) {
+                window.location.reload()
+              } else {
+                setMapVisible(false)
+              }
+            }}
+          >
+            {mapVisible ? 'on' : 'off'}
+          </button>
+        </div>
+
         <div className="sidebar-footer">
           {visibleCount} {visibleCount === 1 ? 'memory' : 'memories'} shown
         </div>
       </div>
 
-      <div id='map-container' ref={mapContainerRef} />
-    </>
+      <div className="map-frame">
+        <div id='map-container' ref={mapContainerRef} className={mapVisible ? '' : 'map-hidden'} />
+      </div>
+    </div>
   )
 }
 
