@@ -69,15 +69,19 @@ function App() {
       container: mapContainerRef.current,
       center: center,
       zoom: 12,
+      style: 'mapbox://styles/annabelmcd/cmppzyffu002x01sybtkgbvii',
     });
 
     markerInstancesRef.current = markers.map(({ lng, lat, title, author, feeling, description }) => {
       const color = feelingColors[feeling] || '#c084fc';
+      const dotHtml = author === 'Annabel'
+        ? `<img src="${import.meta.env.BASE_URL}annabel-${feeling}.png" style="width:14px;height:14px;object-fit:contain;flex-shrink:0">`
+        : `<span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>`;
       const popupContainer = document.createElement('div');
       popupContainer.style.cssText = 'font-family:monospace;min-width:240px;max-width:280px;font-size:13px;line-height:1.5';
       popupContainer.innerHTML = `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>
+          ${dotHtml}
           <span style="font-weight:700;font-size:14px;color:#1a1a1a">${title}</span>
         </div>
         <div style="color:#666;margin-bottom:10px;font-size:12px">
@@ -90,10 +94,21 @@ function App() {
       const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '300px' })
         .setDOMContent(popupContainer);
 
-      const marker = new mapboxgl.Marker({ color, scale: 0.6 })
-        .setLngLat([lng, lat])
-        .setPopup(popup)
-        .addTo(mapRef.current);
+      let marker;
+      if (author === 'Annabel') {
+        const el = document.createElement('img');
+        el.src = `${import.meta.env.BASE_URL}annabel-${feeling}.png`;
+        el.style.cssText = 'width:26px;height:26px;object-fit:contain;cursor:pointer';
+        marker = new mapboxgl.Marker({ element: el })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(mapRef.current);
+      } else {
+        marker = new mapboxgl.Marker({ color, scale: 0.6 })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(mapRef.current);
+      }
 
       return { marker, author, feeling };
     });
