@@ -138,7 +138,7 @@ function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <h1>memory map</h1>
-          <p>a collection of places that shaped us, mapped across seattle.</p>
+          <p>a collection of places that mean something to each of us, mapped across seattle.</p>
         </div>
 
         <div className="sidebar-section">
@@ -150,7 +150,22 @@ function App() {
             >
               all
             </button>
-            {authors.map(a => (
+            {authors.map(a => a === 'Annabel' ? (
+              <img
+                key={a}
+                src={`${import.meta.env.BASE_URL}annabel-face.png`}
+                alt="Annabel"
+                onClick={() => setAuthorFilter(a)}
+                style={{
+                  width: '100px',
+                  height: '100px',
+                  objectFit: 'cover',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  opacity: authorFilter === a ? 1 : 0.45,
+                }}
+              />
+            ) : (
               <button
                 key={a}
                 className={`filter-btn ${authorFilter === a ? 'active' : ''}`}
@@ -171,7 +186,27 @@ function App() {
             >
               all
             </button>
-            {feelings.map(f => (
+            {feelings.map(f => authorFilter === 'Annabel' ? (
+              <div
+                key={f}
+                onClick={() => setFeelingFilter(f)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  opacity: feelingFilter === f || feelingFilter === 'all' ? 1 : 0.45,
+                }}
+              >
+                <img
+                  src={`${import.meta.env.BASE_URL}annabel-${f}.png`}
+                  alt={f}
+                  style={{ width: '36px', height: '36px', objectFit: 'contain' }}
+                />
+                <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{f}</span>
+              </div>
+            ) : (
               <button
                 key={f}
                 className={`filter-btn ${feelingFilter === f ? 'active' : ''}`}
