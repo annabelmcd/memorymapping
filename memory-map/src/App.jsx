@@ -55,12 +55,12 @@ function distanceFeet(lng1, lat1, lng2, lat2) {
 }
 
 const feelingColors = {
-  warm:    '#f5a623',
-  wistful: '#a78bfa',
-  calm:    '#60a5fa',
-  intense: '#f87171',
-  tender:  '#f472b6',
-  alive:   '#4ade80',
+  warm:    '#b45309',
+  wistful: '#6d28d9',
+  calm:    '#1d4ed8',
+  intense: '#dc2626',
+  tender:  '#be185d',
+  alive:   '#15803d',
 };
 
 function App() {
@@ -69,6 +69,31 @@ function App() {
   const markerInstancesRef = useRef([])
   const connectionsModeRef = useRef(false)
   const markerJustClickedRef = useRef(false)
+  const aliveAnnotationRef = useRef(null)
+  const aliveRectRef = useRef(null)
+  const aliveTextRef = useRef(null)
+  const aliveTextBgRef = useRef(null)
+  const updateAliveAnnotationRef = useRef(null)
+  const intenseAnnotationRef = useRef(null)
+  const intenseRectRef = useRef(null)
+  const intenseTextRef = useRef(null)
+  const intenseTextBgRef = useRef(null)
+  const updateIntenseAnnotationRef = useRef(null)
+  const wistfulAnnotationRef = useRef(null)
+  const wistfulRectRef = useRef(null)
+  const wistfulTextRef = useRef(null)
+  const wistfulTextBgRef = useRef(null)
+  const updateWistfulAnnotationRef = useRef(null)
+  const calmAnnotationRef = useRef(null)
+  const calmRectRef = useRef(null)
+  const calmTextRef = useRef(null)
+  const calmTextBgRef = useRef(null)
+  const updateCalmAnnotationRef = useRef(null)
+  const allIntenseAnnotationRef = useRef(null)
+  const allIntenseRectRef = useRef(null)
+  const allIntenseTextRef = useRef(null)
+  const allIntenseTextBgRef = useRef(null)
+  const updateAllIntenseAnnotationRef = useRef(null)
 
   const [authorFilter, setAuthorFilter] = useState('all')
   const [feelingFilter, setFeelingFilter] = useState('all')
@@ -89,6 +114,401 @@ function App() {
       zoom: 12,
       style: 'mapbox://styles/annabelmcd/cmppzyffu002x01sybtkgbvii',
     });
+
+    // SVG annotation overlay
+    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible';
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+    filter.setAttribute('id', 'roughen');
+    filter.setAttribute('x', '-20%'); filter.setAttribute('y', '-20%');
+    filter.setAttribute('width', '140%'); filter.setAttribute('height', '140%');
+    const turb = document.createElementNS('http://www.w3.org/2000/svg', 'feTurbulence');
+    turb.setAttribute('type', 'turbulence');
+    turb.setAttribute('baseFrequency', '0.02');
+    turb.setAttribute('numOctaves', '2');
+    turb.setAttribute('seed', '5');
+    turb.setAttribute('result', 'noise');
+    const disp = document.createElementNS('http://www.w3.org/2000/svg', 'feDisplacementMap');
+    disp.setAttribute('in', 'SourceGraphic'); disp.setAttribute('in2', 'noise');
+    disp.setAttribute('scale', '4');
+    disp.setAttribute('xChannelSelector', 'R'); disp.setAttribute('yChannelSelector', 'G');
+    filter.appendChild(turb); filter.appendChild(disp);
+    defs.appendChild(filter); svgEl.appendChild(defs);
+
+    const aliveGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    aliveGroup.style.display = 'none';
+
+    const aliveRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    aliveRect.setAttribute('rx', '4'); aliveRect.setAttribute('ry', '4');
+    aliveRect.setAttribute('fill', 'rgba(21,128,61,0.07)');
+    aliveRect.setAttribute('stroke', '#15803d');
+    aliveRect.setAttribute('stroke-width', '2.5');
+    aliveRect.setAttribute('filter', 'url(#roughen)');
+    aliveGroup.appendChild(aliveRect);
+
+    const makeTextEl = (isBg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('font-family', 'monospace');
+      el.setAttribute('font-size', '12');
+      el.setAttribute('font-weight', '600');
+      el.setAttribute('text-anchor', 'middle');
+      if (isBg) {
+        el.setAttribute('stroke', '#ffffff');
+        el.setAttribute('stroke-width', '4');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+      } else {
+        el.setAttribute('fill', '#15803d');
+      }
+      ['Annabel feels most alive', 'near water & in the sun'].forEach((line, i) => {
+        const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        ts.setAttribute('x', '0');
+        ts.setAttribute('dy', i === 0 ? '0' : '17');
+        ts.textContent = line;
+        el.appendChild(ts);
+      });
+      return el;
+    };
+
+    const aliveTextBg = makeTextEl(true);
+    const aliveText = makeTextEl(false);
+    aliveGroup.appendChild(aliveTextBg);
+    aliveGroup.appendChild(aliveText);
+    svgEl.appendChild(aliveGroup);
+    mapContainerRef.current.appendChild(svgEl);
+
+    aliveAnnotationRef.current = aliveGroup;
+    aliveRectRef.current = aliveRect;
+    aliveTextRef.current = aliveText;
+    aliveTextBgRef.current = aliveTextBg;
+
+    const annabelAliveCoords = markers
+      .filter(m => m.author === 'Annabel' && m.feeling === 'alive')
+      .map(m => [m.lng, m.lat]);
+
+    const updateAliveAnnotation = () => {
+      if (!aliveRectRef.current || !mapRef.current) return;
+      const pts = annabelAliveCoords.map(([lng, lat]) => mapRef.current.project([lng, lat]));
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const pad = 28;
+      const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+      const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+      const cx = (minX + maxX) / 2;
+      aliveRectRef.current.setAttribute('x', minX);
+      aliveRectRef.current.setAttribute('y', minY);
+      aliveRectRef.current.setAttribute('width', maxX - minX);
+      aliveRectRef.current.setAttribute('height', maxY - minY);
+      [aliveTextRef.current, aliveTextBgRef.current].forEach(el => {
+        if (!el) return;
+        el.setAttribute('x', cx);
+        el.setAttribute('y', maxY + 20);
+        el.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
+      });
+    };
+
+    updateAliveAnnotationRef.current = updateAliveAnnotation;
+    mapRef.current.on('move', updateAliveAnnotation);
+
+    // Intense annotation
+    const intenseGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    intenseGroup.style.display = 'none';
+
+    const intenseRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    intenseRect.setAttribute('rx', '4'); intenseRect.setAttribute('ry', '4');
+    intenseRect.setAttribute('fill', 'rgba(220,38,38,0.07)');
+    intenseRect.setAttribute('stroke', '#dc2626');
+    intenseRect.setAttribute('stroke-width', '2.5');
+    intenseRect.setAttribute('filter', 'url(#roughen)');
+    intenseGroup.appendChild(intenseRect);
+
+    const makeIntenseTextEl = (isBg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('font-family', 'monospace');
+      el.setAttribute('font-size', '12');
+      el.setAttribute('font-weight', '600');
+      el.setAttribute('text-anchor', 'middle');
+      if (isBg) {
+        el.setAttribute('stroke', '#ffffff');
+        el.setAttribute('stroke-width', '4');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+      } else {
+        el.setAttribute('fill', '#b91c1c');
+      }
+      const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      ts.setAttribute('x', '0');
+      ts.setAttribute('dy', '0');
+      ts.textContent = 'Annabel feels intense on campus.';
+      el.appendChild(ts);
+      return el;
+    };
+
+    const intenseTextBg = makeIntenseTextEl(true);
+    const intenseText = makeIntenseTextEl(false);
+    intenseGroup.appendChild(intenseTextBg);
+    intenseGroup.appendChild(intenseText);
+    svgEl.appendChild(intenseGroup);
+
+    intenseAnnotationRef.current = intenseGroup;
+    intenseRectRef.current = intenseRect;
+    intenseTextRef.current = intenseText;
+    intenseTextBgRef.current = intenseTextBg;
+
+    const annabelIntenseCoords = markers
+      .filter(m => m.author === 'Annabel' && m.feeling === 'intense')
+      .map(m => [m.lng, m.lat]);
+
+    const updateIntenseAnnotation = () => {
+      if (!intenseRectRef.current || !mapRef.current) return;
+      const pts = annabelIntenseCoords.map(([lng, lat]) => mapRef.current.project([lng, lat]));
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const pad = 28;
+      const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+      const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+      const cx = (minX + maxX) / 2;
+      intenseRectRef.current.setAttribute('x', minX);
+      intenseRectRef.current.setAttribute('y', minY);
+      intenseRectRef.current.setAttribute('width', maxX - minX);
+      intenseRectRef.current.setAttribute('height', maxY - minY);
+      [intenseTextRef.current, intenseTextBgRef.current].forEach(el => {
+        if (!el) return;
+        el.setAttribute('x', cx);
+        el.setAttribute('y', maxY + 20);
+        el.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
+      });
+    };
+
+    updateIntenseAnnotationRef.current = updateIntenseAnnotation;
+    mapRef.current.on('move', updateIntenseAnnotation);
+
+    // Wistful annotation
+    const wistfulGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    wistfulGroup.style.display = 'none';
+
+    const wistfulRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    wistfulRect.setAttribute('rx', '4'); wistfulRect.setAttribute('ry', '4');
+    wistfulRect.setAttribute('fill', 'rgba(109,40,217,0.07)');
+    wistfulRect.setAttribute('stroke', '#6d28d9');
+    wistfulRect.setAttribute('stroke-width', '2.5');
+    wistfulRect.setAttribute('filter', 'url(#roughen)');
+    wistfulGroup.appendChild(wistfulRect);
+
+    const makeWistfulTextEl = (isBg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('font-family', 'monospace');
+      el.setAttribute('font-size', '12');
+      el.setAttribute('font-weight', '600');
+      el.setAttribute('text-anchor', 'middle');
+      if (isBg) {
+        el.setAttribute('stroke', '#ffffff');
+        el.setAttribute('stroke-width', '4');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+      } else {
+        el.setAttribute('fill', '#6d28d9');
+      }
+      ['Eli and Liya are wistful', 'over their early living spaces.'].forEach((line, i) => {
+        const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        ts.setAttribute('x', '0');
+        ts.setAttribute('dy', i === 0 ? '0' : '17');
+        ts.textContent = line;
+        el.appendChild(ts);
+      });
+      return el;
+    };
+
+    const wistfulTextBg = makeWistfulTextEl(true);
+    const wistfulText = makeWistfulTextEl(false);
+    wistfulGroup.appendChild(wistfulTextBg);
+    wistfulGroup.appendChild(wistfulText);
+    svgEl.appendChild(wistfulGroup);
+
+    wistfulAnnotationRef.current = wistfulGroup;
+    wistfulRectRef.current = wistfulRect;
+    wistfulTextRef.current = wistfulText;
+    wistfulTextBgRef.current = wistfulTextBg;
+
+    const wistfulCoords = markers
+      .filter(m => m.title === 'elm 532' || m.title === 'first apartment')
+      .map(m => [m.lng, m.lat]);
+
+    const updateWistfulAnnotation = () => {
+      if (!wistfulRectRef.current || !mapRef.current) return;
+      const pts = wistfulCoords.map(([lng, lat]) => mapRef.current.project([lng, lat]));
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const pad = 28;
+      const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+      const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+      const cx = (minX + maxX) / 2;
+      wistfulRectRef.current.setAttribute('x', minX);
+      wistfulRectRef.current.setAttribute('y', minY);
+      wistfulRectRef.current.setAttribute('width', maxX - minX);
+      wistfulRectRef.current.setAttribute('height', maxY - minY);
+      [wistfulTextRef.current, wistfulTextBgRef.current].forEach(el => {
+        if (!el) return;
+        el.setAttribute('x', cx);
+        el.setAttribute('y', maxY + 20);
+        el.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
+      });
+    };
+
+    updateWistfulAnnotationRef.current = updateWistfulAnnotation;
+    mapRef.current.on('move', updateWistfulAnnotation);
+
+    // Calm annotation
+    const calmGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    calmGroup.style.display = 'none';
+
+    const calmRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    calmRect.setAttribute('rx', '4'); calmRect.setAttribute('ry', '4');
+    calmRect.setAttribute('fill', 'rgba(29,78,216,0.07)');
+    calmRect.setAttribute('stroke', '#1d4ed8');
+    calmRect.setAttribute('stroke-width', '2.5');
+    calmRect.setAttribute('filter', 'url(#roughen)');
+    calmGroup.appendChild(calmRect);
+
+    const makeCalmTextEl = (isBg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('font-family', 'monospace');
+      el.setAttribute('font-size', '12');
+      el.setAttribute('font-weight', '600');
+      el.setAttribute('text-anchor', 'middle');
+      if (isBg) {
+        el.setAttribute('stroke', '#ffffff');
+        el.setAttribute('stroke-width', '4');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+      } else {
+        el.setAttribute('fill', '#1d4ed8');
+      }
+      ['Annabel and Liya feel calm', 'during spring and summertime in Seattle.'].forEach((line, i) => {
+        const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        ts.setAttribute('x', '0');
+        ts.setAttribute('dy', i === 0 ? '0' : '17');
+        ts.textContent = line;
+        el.appendChild(ts);
+      });
+      return el;
+    };
+
+    const calmTextBg = makeCalmTextEl(true);
+    const calmText = makeCalmTextEl(false);
+    calmGroup.appendChild(calmTextBg);
+    calmGroup.appendChild(calmText);
+    svgEl.appendChild(calmGroup);
+
+    calmAnnotationRef.current = calmGroup;
+    calmRectRef.current = calmRect;
+    calmTextRef.current = calmText;
+    calmTextBgRef.current = calmTextBg;
+
+    const calmCoords = markers
+      .filter(m => ['naptime', 'seattle feels like home', 'kayak date'].includes(m.title))
+      .map(m => [m.lng, m.lat]);
+
+    const updateCalmAnnotation = () => {
+      if (!calmRectRef.current || !mapRef.current) return;
+      const pts = calmCoords.map(([lng, lat]) => mapRef.current.project([lng, lat]));
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const pad = 28;
+      const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+      const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+      const cx = (minX + maxX) / 2;
+      calmRectRef.current.setAttribute('x', minX);
+      calmRectRef.current.setAttribute('y', minY);
+      calmRectRef.current.setAttribute('width', maxX - minX);
+      calmRectRef.current.setAttribute('height', maxY - minY);
+      [calmTextRef.current, calmTextBgRef.current].forEach(el => {
+        if (!el) return;
+        el.setAttribute('x', cx);
+        el.setAttribute('y', maxY + 20);
+        el.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
+      });
+    };
+
+    updateCalmAnnotationRef.current = updateCalmAnnotation;
+    mapRef.current.on('move', updateCalmAnnotation);
+
+    // All:intense annotation
+    const allIntenseGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    allIntenseGroup.style.display = 'none';
+
+    const allIntenseRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    allIntenseRect.setAttribute('rx', '4'); allIntenseRect.setAttribute('ry', '4');
+    allIntenseRect.setAttribute('fill', 'rgba(220,38,38,0.07)');
+    allIntenseRect.setAttribute('stroke', '#dc2626');
+    allIntenseRect.setAttribute('stroke-width', '2.5');
+    allIntenseRect.setAttribute('filter', 'url(#roughen)');
+    allIntenseGroup.appendChild(allIntenseRect);
+
+    const makeAllIntenseTextEl = (isBg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('font-family', 'monospace');
+      el.setAttribute('font-size', '12');
+      el.setAttribute('font-weight', '600');
+      el.setAttribute('text-anchor', 'middle');
+      if (isBg) {
+        el.setAttribute('stroke', '#ffffff');
+        el.setAttribute('stroke-width', '4');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+      } else {
+        el.setAttribute('fill', '#b91c1c');
+      }
+      ['Eli and Liya had some intense', 'party moments around here.'].forEach((line, i) => {
+        const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        ts.setAttribute('x', '0');
+        ts.setAttribute('dy', i === 0 ? '0' : '17');
+        ts.textContent = line;
+        el.appendChild(ts);
+      });
+      return el;
+    };
+
+    const allIntenseTextBg = makeAllIntenseTextEl(true);
+    const allIntenseText = makeAllIntenseTextEl(false);
+    allIntenseGroup.appendChild(allIntenseTextBg);
+    allIntenseGroup.appendChild(allIntenseText);
+    svgEl.appendChild(allIntenseGroup);
+
+    allIntenseAnnotationRef.current = allIntenseGroup;
+    allIntenseRectRef.current = allIntenseRect;
+    allIntenseTextRef.current = allIntenseText;
+    allIntenseTextBgRef.current = allIntenseTextBg;
+
+    const allIntenseCoords = markers
+      .filter(m => ['current apartment', 'crying on a frat lawn', 'Cry baby', 'Drunk run'].includes(m.title))
+      .map(m => [m.lng, m.lat]);
+
+    const updateAllIntenseAnnotation = () => {
+      if (!allIntenseRectRef.current || !mapRef.current) return;
+      const pts = allIntenseCoords.map(([lng, lat]) => mapRef.current.project([lng, lat]));
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const pad = 28;
+      const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+      const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+      const cx = (minX + maxX) / 2;
+      allIntenseRectRef.current.setAttribute('x', minX);
+      allIntenseRectRef.current.setAttribute('y', minY);
+      allIntenseRectRef.current.setAttribute('width', maxX - minX);
+      allIntenseRectRef.current.setAttribute('height', maxY - minY);
+      [allIntenseTextRef.current, allIntenseTextBgRef.current].forEach(el => {
+        if (!el) return;
+        el.setAttribute('x', cx);
+        el.setAttribute('y', maxY + 20);
+        el.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
+      });
+    };
+
+    updateAllIntenseAnnotationRef.current = updateAllIntenseAnnotation;
+    mapRef.current.on('move', updateAllIntenseAnnotation);
 
     mapRef.current.on('load', () => {
       mapRef.current.addSource('connections', {
@@ -220,6 +640,41 @@ function App() {
     if (!connectionsMode) clearConnections();
   }, [connectionsMode]);
 
+  const showAliveAnnotation = authorFilter === 'Annabel' && feelingFilter === 'alive';
+  useEffect(() => {
+    if (!aliveAnnotationRef.current) return;
+    aliveAnnotationRef.current.style.display = showAliveAnnotation ? '' : 'none';
+    if (showAliveAnnotation) updateAliveAnnotationRef.current?.();
+  }, [showAliveAnnotation]);
+
+  const showIntenseAnnotation = authorFilter === 'Annabel' && feelingFilter === 'intense';
+  useEffect(() => {
+    if (!intenseAnnotationRef.current) return;
+    intenseAnnotationRef.current.style.display = showIntenseAnnotation ? '' : 'none';
+    if (showIntenseAnnotation) updateIntenseAnnotationRef.current?.();
+  }, [showIntenseAnnotation]);
+
+  const showWistfulAnnotation = authorFilter === 'all' && feelingFilter === 'wistful';
+  useEffect(() => {
+    if (!wistfulAnnotationRef.current) return;
+    wistfulAnnotationRef.current.style.display = showWistfulAnnotation ? '' : 'none';
+    if (showWistfulAnnotation) updateWistfulAnnotationRef.current?.();
+  }, [showWistfulAnnotation]);
+
+  const showCalmAnnotation = authorFilter === 'all' && feelingFilter === 'calm';
+  useEffect(() => {
+    if (!calmAnnotationRef.current) return;
+    calmAnnotationRef.current.style.display = showCalmAnnotation ? '' : 'none';
+    if (showCalmAnnotation) updateCalmAnnotationRef.current?.();
+  }, [showCalmAnnotation]);
+
+  const showAllIntenseAnnotation = authorFilter === 'all' && feelingFilter === 'intense';
+  useEffect(() => {
+    if (!allIntenseAnnotationRef.current) return;
+    allIntenseAnnotationRef.current.style.display = showAllIntenseAnnotation ? '' : 'none';
+    if (showAllIntenseAnnotation) updateAllIntenseAnnotationRef.current?.();
+  }, [showAllIntenseAnnotation]);
+
   useEffect(() => {
     clearConnections();
   }, [authorFilter, feelingFilter]);
@@ -248,28 +703,29 @@ function App() {
 
         <div className="sidebar-section">
           <h2>by person</h2>
-          <div className="filter-group">
-            <button
-              className={`filter-btn ${authorFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setAuthorFilter('all')}
-            >
-              all
-            </button>
+          <button
+            className={`filter-btn ${authorFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setAuthorFilter('all')}
+            style={{ marginBottom: '10px' }}
+          >
+            all
+          </button>
+          <div className="filter-group" style={{ flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between' }}>
             {authors.map(a => (a === 'Annabel' || a === 'Eli') ? (
-              <img
-                key={a}
-                src={`${import.meta.env.BASE_URL}${a.toLowerCase()}-face.png`}
-                alt={a}
-                onClick={() => setAuthorFilter(a)}
-                style={{
-                  width: '100px',
-                  height: '100px',
-                  objectFit: 'cover',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  opacity: authorFilter === a ? 1 : 0.45,
-                }}
-              />
+              <div key={a} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', cursor: 'pointer' }} onClick={() => setAuthorFilter(a)}>
+                <img
+                  src={`${import.meta.env.BASE_URL}${a.toLowerCase()}-face.png`}
+                  alt={a}
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    objectFit: 'cover',
+                    borderRadius: '50%',
+                    opacity: authorFilter === a ? 1 : 0.45,
+                  }}
+                />
+                <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--btn-text)', opacity: authorFilter === a ? 1 : 0.6 }}>{a.toLowerCase()}</span>
+              </div>
             ) : (
               <button
                 key={a}
