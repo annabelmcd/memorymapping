@@ -44,6 +44,16 @@ const markers = [
 const authors = ['Annabel', 'Liya', 'Eli'];
 const feelings = ['warm', 'wistful', 'calm', 'intense', 'tender', 'alive'];
 
+function distanceFeet(lng1, lat1, lng2, lat2) {
+  const R = 20902231;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(R * 2 * Math.asin(Math.sqrt(a)));
+}
+
 const feelingColors = {
   warm:    '#f5a623',
   wistful: '#a78bfa',
@@ -57,10 +67,18 @@ function App() {
   const mapRef = useRef()
   const mapContainerRef = useRef()
   const markerInstancesRef = useRef([])
+  const connectionsModeRef = useRef(false)
+  const markerJustClickedRef = useRef(false)
 
   const [authorFilter, setAuthorFilter] = useState('all')
   const [feelingFilter, setFeelingFilter] = useState('all')
   const [mapVisible, setMapVisible] = useState(true)
+  const [connectionsMode, setConnectionsMode] = useState(false)
+
+  const clearConnections = () => {
+    const src = mapRef.current?.getSource('connections');
+    if (src) src.setData({ type: 'FeatureCollection', features: [] });
+  };
 
   useEffect(() => {
     mapboxgl.accessToken = accessToken
@@ -70,6 +88,48 @@ function App() {
       center: center,
       zoom: 12,
       style: 'mapbox://styles/annabelmcd/cmppzyffu002x01sybtkgbvii',
+    });
+
+    mapRef.current.on('load', () => {
+      mapRef.current.addSource('connections', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      mapRef.current.addLayer({
+        id: 'connections-layer',
+        type: 'line',
+        source: 'connections',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 2.5,
+          'line-opacity': 0.9,
+        },
+      });
+      mapRef.current.addLayer({
+        id: 'connections-labels',
+        type: 'symbol',
+        source: 'connections',
+        layout: {
+          'symbol-placement': 'line-center',
+          'text-field': ['get', 'label'],
+          'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Regular'],
+          'text-size': 11,
+          'text-keep-upright': true,
+        },
+        paint: {
+          'text-color': ['get', 'color'],
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+        },
+      });
+    });
+
+    mapRef.current.on('click', () => {
+      if (markerJustClickedRef.current) {
+        markerJustClickedRef.current = false;
+        return;
+      }
+      clearConnections();
     });
 
     markerInstancesRef.current = markers.map(({ lng, lat, title, author, feeling, description }) => {
@@ -111,6 +171,42 @@ function App() {
           .addTo(mapRef.current);
       }
 
+      marker.getElement().addEventListener('click', () => {
+        if (!connectionsModeRef.current) return;
+        markerJustClickedRef.current = true;
+
+        const visible = markerInstancesRef.current.filter(
+          inst => inst.marker.getElement().style.display !== 'none'
+        );
+
+        const nearest = visible
+          .filter(inst => inst.marker !== marker)
+          .map(inst => {
+            const ll = inst.marker.getLngLat();
+            const d = Math.hypot(ll.lng - lng, ll.lat - lat);
+            return { inst, d };
+          })
+          .sort((a, b) => a.d - b.d)
+          .slice(0, 3);
+
+        const features = nearest.map(({ inst }) => {
+          const ll = inst.marker.getLngLat();
+          const destColor = feelingColors[inst.feeling] || '#c084fc';
+          const ft = distanceFeet(lng, lat, ll.lng, ll.lat);
+          return {
+            type: 'Feature',
+            properties: { color: destColor, label: `${ft.toLocaleString()} ft` },
+            geometry: {
+              type: 'LineString',
+              coordinates: [[lng, lat], [ll.lng, ll.lat]],
+            },
+          };
+        });
+
+        const src = mapRef.current?.getSource('connections');
+        if (src) src.setData({ type: 'FeatureCollection', features });
+      });
+
       return { marker, author, feeling };
     });
 
@@ -118,6 +214,15 @@ function App() {
       mapRef.current.remove()
     }
   }, [])
+
+  useEffect(() => {
+    connectionsModeRef.current = connectionsMode;
+    if (!connectionsMode) clearConnections();
+  }, [connectionsMode]);
+
+  useEffect(() => {
+    clearConnections();
+  }, [authorFilter, feelingFilter]);
 
   useEffect(() => {
     markerInstancesRef.current.forEach(({ marker, author, feeling }) => {
@@ -231,6 +336,19 @@ function App() {
             }}
           >
             {mapVisible ? 'on' : 'off'}
+          </button>
+        </div>
+
+        <div className="sidebar-section">
+          <h2>connections</h2>
+          <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+            click any point to see its 3 closest neighbors
+          </p>
+          <button
+            className={`filter-btn toggle-btn ${connectionsMode ? 'active' : ''}`}
+            onClick={() => setConnectionsMode(m => !m)}
+          >
+            {connectionsMode ? 'on' : 'off'}
           </button>
         </div>
 
