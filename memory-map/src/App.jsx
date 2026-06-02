@@ -575,8 +575,8 @@ function App() {
         .setDOMContent(popupContainer);
 
       let marker;
-      if (author === 'Annabel' || author === 'Eli') {
-        const prefix = author === 'Annabel' ? 'annabel' : 'eli';
+      if (author === 'Annabel' || author === 'Eli' || author === 'Liya') {
+        const prefix = author === 'Annabel' ? 'annabel' : author === 'Eli' ? 'eli' : author === 'liya';
         const el = document.createElement('img');
         el.src = `${import.meta.env.BASE_URL}${prefix}-${feeling}.png`;
         el.style.cssText = 'width:26px;height:26px;object-fit:contain;cursor:pointer';
@@ -711,7 +711,7 @@ function App() {
             all
           </button>
           <div className="filter-group" style={{ flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between' }}>
-            {authors.map(a => (a === 'Annabel' || a === 'Eli') ? (
+            {authors.map(a => (a === 'Annabel' || a === 'Eli' || a === 'Liya') ? (
               <div key={a} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', cursor: 'pointer' }} onClick={() => setAuthorFilter(a)}>
                 <img
                   src={`${import.meta.env.BASE_URL}${a.toLowerCase()}-face.png`}
