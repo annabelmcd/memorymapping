@@ -747,7 +747,7 @@ function App() {
             >
               all
             </button>
-            {feelings.map(f => (authorFilter === 'Annabel' || authorFilter === 'Eli') ? (
+            {feelings.map(f => (authorFilter === 'Annabel' || authorFilter === 'Eli' || authorFilter === 'Liya') ? (
               <div
                 key={f}
                 onClick={() => setFeelingFilter(f)}
