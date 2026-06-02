@@ -554,9 +554,9 @@ function App() {
 
     markerInstancesRef.current = markers.map(({ lng, lat, title, author, feeling, description }) => {
       const color = feelingColors[feeling] || '#c084fc';
-      const dotHtml = (author === 'Annabel' || author === 'Eli')
-        ? `<img src="${import.meta.env.BASE_URL}${author === 'Annabel' ? 'annabel' : 'eli'}-${feeling}.png" style="width:14px;height:14px;object-fit:contain;flex-shrink:0">`
-        : `<span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>`;
+      const dotHtml = (author === 'Annabel' || author === 'Eli' || author === 'Liya')
+      ? `<img src="${import.meta.env.BASE_URL}${author.toLowerCase()}-${feeling}.png" ...>`
+      : `<span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>`;
       const popupContainer = document.createElement('div');
       popupContainer.style.cssText = 'font-family:monospace;min-width:240px;max-width:280px;font-size:13px;line-height:1.5';
       popupContainer.innerHTML = `
@@ -576,8 +576,7 @@ function App() {
 
       let marker;
       if (author === 'Annabel' || author === 'Eli' || author === 'Liya') {
-        const prefix = author === 'Annabel' ? 'annabel' : author === 'Eli' ? 'eli' : author === 'liya';
-        const el = document.createElement('img');
+        const prefix = author === 'Annabel' ? 'annabel' : author === 'Eli' ? 'eli' : 'liya';        const el = document.createElement('img');
         el.src = `${import.meta.env.BASE_URL}${prefix}-${feeling}.png`;
         el.style.cssText = 'width:26px;height:26px;object-fit:contain;cursor:pointer';
         marker = new mapboxgl.Marker({ element: el })
