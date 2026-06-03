@@ -94,6 +94,8 @@ function App() {
   const allIntenseTextRef = useRef(null)
   const allIntenseTextBgRef = useRef(null)
   const updateAllIntenseAnnotationRef = useRef(null)
+  const connSvgGroupRef = useRef(null)
+  const activeConnectionsRef = useRef(null)
 
   const [authorFilter, setAuthorFilter] = useState('all')
   const [feelingFilter, setFeelingFilter] = useState('all')
@@ -101,8 +103,8 @@ function App() {
   const [connectionsMode, setConnectionsMode] = useState(false)
 
   const clearConnections = () => {
-    const src = mapRef.current?.getSource('connections');
-    if (src) src.setData({ type: 'FeatureCollection', features: [] });
+    if (connSvgGroupRef.current) connSvgGroupRef.current.innerHTML = '';
+    activeConnectionsRef.current = null;
   };
 
   useEffect(() => {
@@ -177,6 +179,11 @@ function App() {
     aliveGroup.appendChild(aliveTextBg);
     aliveGroup.appendChild(aliveText);
     svgEl.appendChild(aliveGroup);
+    // Connections group (below annotations)
+    const connGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    svgEl.appendChild(connGroup);
+    connSvgGroupRef.current = connGroup;
+
     mapContainerRef.current.appendChild(svgEl);
 
     aliveAnnotationRef.current = aliveGroup;
@@ -510,39 +517,24 @@ function App() {
     updateAllIntenseAnnotationRef.current = updateAllIntenseAnnotation;
     mapRef.current.on('move', updateAllIntenseAnnotation);
 
-    mapRef.current.on('load', () => {
-      mapRef.current.addSource('connections', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+    const updateConnectionPositions = () => {
+      if (!activeConnectionsRef.current || !connSvgGroupRef.current || !mapRef.current) return;
+      const { fromLng, fromLat, connections } = activeConnectionsRef.current;
+      const from = mapRef.current.project([fromLng, fromLat]);
+      const lines = connSvgGroupRef.current.querySelectorAll('line');
+      connections.forEach(({ toLng, toLat }, i) => {
+        const to = mapRef.current.project([toLng, toLat]);
+        if (lines[i]) {
+          lines[i].setAttribute('x1', from.x); lines[i].setAttribute('y1', from.y);
+          lines[i].setAttribute('x2', to.x);   lines[i].setAttribute('y2', to.y);
+        }
+        const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+        const bg = connSvgGroupRef.current.querySelector(`.conn-bg-${i}`);
+        const fg = connSvgGroupRef.current.querySelector(`.conn-fg-${i}`);
+        [bg, fg].forEach(el => { if (el) { el.setAttribute('x', mx); el.setAttribute('y', my - 5); } });
       });
-      mapRef.current.addLayer({
-        id: 'connections-layer',
-        type: 'line',
-        source: 'connections',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 2.5,
-          'line-opacity': 0.9,
-        },
-      });
-      mapRef.current.addLayer({
-        id: 'connections-labels',
-        type: 'symbol',
-        source: 'connections',
-        layout: {
-          'symbol-placement': 'line-center',
-          'text-field': ['get', 'label'],
-          'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Regular'],
-          'text-size': 11,
-          'text-keep-upright': true,
-        },
-        paint: {
-          'text-color': ['get', 'color'],
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2,
-        },
-      });
-    });
+    };
+    mapRef.current.on('move', updateConnectionPositions);
 
     mapRef.current.on('click', () => {
       if (markerJustClickedRef.current) {
@@ -555,8 +547,8 @@ function App() {
     markerInstancesRef.current = markers.map(({ lng, lat, title, author, feeling, description }) => {
       const color = feelingColors[feeling] || '#c084fc';
       const dotHtml = (author === 'Annabel' || author === 'Eli' || author === 'Liya')
-      ? `<img src="${import.meta.env.BASE_URL}${author.toLowerCase()}-${feeling}.png" ...>`
-      : `<span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>`;
+        ? `<img src="${import.meta.env.BASE_URL}${author.toLowerCase()}-${feeling}.png" style="width:14px;height:14px;object-fit:contain;flex-shrink:0">`
+        : `<span style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>`;
       const popupContainer = document.createElement('div');
       popupContainer.style.cssText = 'font-family:monospace;min-width:240px;max-width:280px;font-size:13px;line-height:1.5';
       popupContainer.innerHTML = `
@@ -608,22 +600,39 @@ function App() {
           .sort((a, b) => a.d - b.d)
           .slice(0, 3);
 
-        const features = nearest.map(({ inst }) => {
+        connSvgGroupRef.current.innerHTML = '';
+        const from = mapRef.current.project([lng, lat]);
+        const connections = nearest.map(({ inst }) => {
           const ll = inst.marker.getLngLat();
-          const destColor = feelingColors[inst.feeling] || '#c084fc';
-          const ft = distanceFeet(lng, lat, ll.lng, ll.lat);
-          return {
-            type: 'Feature',
-            properties: { color: destColor, label: `${ft.toLocaleString()} ft` },
-            geometry: {
-              type: 'LineString',
-              coordinates: [[lng, lat], [ll.lng, ll.lat]],
-            },
-          };
+          return { toLng: ll.lng, toLat: ll.lat, color: feelingColors[inst.feeling] || '#c084fc', label: `${distanceFeet(lng, lat, ll.lng, ll.lat).toLocaleString()} ft` };
         });
 
-        const src = mapRef.current?.getSource('connections');
-        if (src) src.setData({ type: 'FeatureCollection', features });
+        connections.forEach(({ toLng, toLat, color, label }, i) => {
+          const to = mapRef.current.project([toLng, toLat]);
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+          line.setAttribute('x2', to.x);   line.setAttribute('y2', to.y);
+          line.setAttribute('stroke', color);
+          line.setAttribute('stroke-width', '2.5');
+          line.setAttribute('stroke-opacity', '0.9');
+          connSvgGroupRef.current.appendChild(line);
+
+          const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+          [true, false].forEach(isBg => {
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', mx); t.setAttribute('y', my - 5);
+            t.setAttribute('text-anchor', 'middle');
+            t.setAttribute('font-family', 'monospace');
+            t.setAttribute('font-size', '11');
+            t.setAttribute('class', isBg ? `conn-bg-${i}` : `conn-fg-${i}`);
+            if (isBg) { t.setAttribute('stroke', '#ffffff'); t.setAttribute('stroke-width', '3'); t.setAttribute('stroke-linejoin', 'round'); t.setAttribute('fill', 'none'); }
+            else { t.setAttribute('fill', color); }
+            t.textContent = label;
+            connSvgGroupRef.current.appendChild(t);
+          });
+        });
+
+        activeConnectionsRef.current = { fromLng: lng, fromLat: lat, connections };
       });
 
       return { marker, author, feeling };
